@@ -1,41 +1,41 @@
-// Package main é o ponto de entrada do Load Balancer.
-//
-// ARQUITETURA:
-// O Load Balancer distribui conexões entre múltiplos brokers.
-// Funciona como um proxy TCP simples.
-//
-// ESTRATÉGIA (escolher uma):
-// - Round-robin: distribui conexões sequencialmente entre brokers
-// - Hash de tópico: mesmo tópico sempre vai para o mesmo broker
-//
-// IMPORTANTE (conforme CLAUDE.md):
-// NÃO implementar:
-// - Sincronização de estado entre brokers
-// - Replicação de mensagens
-// - Consenso distribuído
-// - Failover complexo
-//
-// EXECUÇÃO:
-//   go run ./loadbalancer
-//
-// PRÓXIMOS PASSOS (feature/load-balancer):
-// - Implementar estratégia round-robin
-// - Implementar proxy de conexões
-// - Configurar lista de brokers
 package main
 
 import (
 	"log"
+	"net"
+	"os"
+	"strings"
 )
 
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func main() {
-	log.Println("[INFO] Load Balancer iniciando...")
+	port := getEnv("LB_PORT", ":8080")
+	brokersStr := getEnv("BROKERS", "localhost:9000,localhost:9001")
+	brokers := strings.Split(brokersStr, ",")
 
-	// TODO: Implementar na branch feature/load-balancer
-	// 1. Carregar configuração de brokers
-	// 2. Iniciar listener TCP
-	// 3. Para cada conexão, selecionar broker (round-robin ou hash)
-	// 4. Fazer proxy da conexão
+	balancer := NewBalancer(brokers)
 
-	log.Println("[INFO] Load Balancer finalizado")
+	listener, err := net.Listen("tcp", port)
+	if err != nil {
+		log.Fatalf("[FATAL] Erro ao iniciar load balancer: %v", err)
+	}
+	defer listener.Close()
+
+	log.Printf("[INFO] Load Balancer iniciado em %s", port)
+	log.Printf("[INFO] Brokers disponíveis: %v", brokers)
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Printf("[ERROR] Erro ao aceitar conexão: %v", err)
+			continue
+		}
+		go balancer.ProxyConnection(conn)
+	}
 }
