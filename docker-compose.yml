@@ -1,0 +1,70 @@
+services:
+  broker-a:
+    build: .
+    command: /bin/broker
+    environment:
+      PORT: ":9000"
+      BUFFER_SIZE: "100"
+    restart: unless-stopped
+
+  broker-b:
+    build: .
+    command: /bin/broker
+    environment:
+      PORT: ":9000"
+      BUFFER_SIZE: "100"
+    restart: unless-stopped
+
+  loadbalancer:
+    build: .
+    command: /bin/loadbalancer
+    environment:
+      LB_PORT: ":8080"
+      BROKERS: "broker-a:9000,broker-b:9000"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - broker-a
+      - broker-b
+    restart: unless-stopped
+
+  subscriber-importadores:
+    build: .
+    command: /bin/subscriber-importadores
+    environment:
+      LB_ADDR: "loadbalancer:8080"
+    depends_on:
+      - loadbalancer
+    restart: unless-stopped
+
+  subscriber-investidores:
+    build: .
+    command: /bin/subscriber-investidores
+    environment:
+      LB_ADDR: "loadbalancer:8080"
+    depends_on:
+      - loadbalancer
+    restart: unless-stopped
+
+  publisher-cambio:
+    build: .
+    command: /bin/publisher-cambio
+    environment:
+      LB_ADDR: "loadbalancer:8080"
+      INTERVALO_CAMBIO: "15"
+    depends_on:
+      - subscriber-importadores
+      - subscriber-investidores
+    restart: unless-stopped
+
+  publisher-cripto:
+    build: .
+    command: /bin/publisher-cripto
+    environment:
+      LB_ADDR: "loadbalancer:8080"
+      INTERVALO_BITCOIN: "20"
+      INTERVALO_SELIC: "60"
+    depends_on:
+      - subscriber-importadores
+      - subscriber-investidores
+    restart: unless-stopped
