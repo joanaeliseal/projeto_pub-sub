@@ -4,24 +4,31 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 
 	"pubsub/shared"
 )
 
-const DefaultPort = ":9000"
-
 var broker *Broker
 
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func main() {
+	port := getEnv("PORT", ":9000")
 	broker = NewBroker()
 
-	listener, err := net.Listen("tcp", DefaultPort)
+	listener, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("[FATAL] Erro ao iniciar servidor: %v", err)
 	}
 	defer listener.Close()
 
-	log.Printf("[INFO] Broker iniciado na porta %s", DefaultPort)
+	log.Printf("[INFO] Broker iniciado na porta %s", port)
 
 	for {
 		conn, err := listener.Accept()
@@ -114,7 +121,12 @@ func handlePublish(client *Client, msg *shared.Message) {
 		return
 	}
 
-	topic.Publish(msg)
+	if !topic.Publish(msg) {
+		log.Printf("[WARN] Buffer cheio — mensagem descartada no tópico %s", msg.Topic)
+		resp := shared.NewError(shared.ErrBufferFull, "buffer do tópico cheio: tente novamente")
+		client.SendResponse(resp)
+		return
+	}
 	log.Printf("[INFO] Mensagem publicada no tópico %s", msg.Topic)
 
 	resp := shared.NewAck(msg.Topic)

@@ -1,40 +1,76 @@
-// balancer.go contém a lógica de balanceamento de carga.
-//
-// ARQUITETURA:
-// O Balancer mantém uma lista de brokers disponíveis
-// e seleciona qual broker atenderá cada nova conexão.
-//
-// ESTRATÉGIAS SUPORTADAS:
-// 1. Round-robin (recomendado para simplicidade)
-//    - Distribui conexões sequencialmente
-//    - Fácil de implementar e entender
-//
-// 2. Hash de tópico (alternativa)
-//    - Garante que mesmo tópico vai para mesmo broker
-//    - Requer extração do tópico da primeira mensagem
-//
-// IMPORTANTE:
-// Esta é uma implementação SIMPLES para fins acadêmicos.
-// NÃO é um sistema de produção com failover real.
-//
-// PRÓXIMOS PASSOS (feature/load-balancer):
-// - Implementar struct Balancer
-// - Implementar AddBroker
-// - Implementar SelectBroker (round-robin)
-// - Implementar health check básico (opcional)
 package main
 
-// TODO: Implementar na branch feature/load-balancer
-//
-// Estrutura esperada:
-//
-// type Balancer struct {
-//     mu      sync.Mutex
-//     brokers []string  // Lista de endereços "host:port"
-//     current int       // Índice atual para round-robin
-// }
-//
-// func NewBalancer() *Balancer
-// func (b *Balancer) AddBroker(addr string)
-// func (b *Balancer) SelectBroker() string  // Round-robin
-// func (b *Balancer) ProxyConnection(clientConn net.Conn)
+import (
+	"bufio"
+	"encoding/json"
+	"hash/fnv"
+	"io"
+	"log"
+	"net"
+	"sync"
+)
+
+type Balancer struct {
+	mu      sync.RWMutex
+	brokers []string
+}
+
+func NewBalancer(brokers []string) *Balancer {
+	return &Balancer{brokers: brokers}
+}
+
+func (b *Balancer) SelectBroker(topic string) string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	h := fnv.New32a()
+	h.Write([]byte(topic))
+	idx := int(h.Sum32()) % len(b.brokers)
+	return b.brokers[idx]
+}
+
+func (b *Balancer) ProxyConnection(clientConn net.Conn) {
+	defer clientConn.Close()
+
+	reader := bufio.NewReader(clientConn)
+
+	line, err := reader.ReadBytes('\n')
+	if err != nil {
+		log.Printf("[LB] Erro ao ler primeira mensagem de %s: %v", clientConn.RemoteAddr(), err)
+		return
+	}
+
+	var raw struct {
+		Topic string `json:"topic"`
+	}
+	json.Unmarshal(line, &raw)
+
+	brokerAddr := b.SelectBroker(raw.Topic)
+	log.Printf("[LB] %s → tópico '%s' → %s", clientConn.RemoteAddr(), raw.Topic, brokerAddr)
+
+	brokerConn, err := net.Dial("tcp", brokerAddr)
+	if err != nil {
+		log.Printf("[LB] Erro ao conectar ao broker %s: %v", brokerAddr, err)
+		return
+	}
+	defer brokerConn.Close()
+
+	if _, err := brokerConn.Write(line); err != nil {
+		log.Printf("[LB] Erro ao reenviar mensagem ao broker: %v", err)
+		return
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		io.Copy(brokerConn, reader)
+	}()
+
+	go func() {
+		defer wg.Done()
+		io.Copy(clientConn, brokerConn)
+	}()
+
+	wg.Wait()
+}
