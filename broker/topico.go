@@ -2,12 +2,25 @@ package main
 
 import (
 	"log"
+	"os"
+	"strconv"
 	"sync"
 
 	"pubsub/shared"
 )
 
-const BufferSize = 100
+func bufferSize() int {
+	s := os.Getenv("BUFFER_SIZE")
+	if s == "" {
+		return 100
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		log.Printf("[WARN] BUFFER_SIZE inválido (%q), usando padrão 100", s)
+		return 100
+	}
+	return n
+}
 
 type Topic struct {
 	name        string
@@ -21,7 +34,7 @@ func NewTopic(name string) *Topic {
 	t := &Topic{
 		name:        name,
 		subscribers: make(map[*Client]bool),
-		messages:    make(chan *shared.Message, BufferSize),
+		messages:    make(chan *shared.Message, bufferSize()),
 		done:        make(chan struct{}),
 	}
 	go t.dispatchMessages()
