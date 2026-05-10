@@ -22,7 +22,7 @@
 // - Implementar AddBroker
 // - Implementar SelectBroker (round-robin)
 // - Implementar health check básico (opcional)
-package loadbalancer
+package main
 
 // TODO: Implementar na branch feature/load-balancer
 //
