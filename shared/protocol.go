@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// Tipos de mensagem do protocolo
 const (
 	TypePublish     = "publish"
 	TypeSubscribe   = "subscribe"
@@ -18,15 +17,14 @@ const (
 	TypeError       = "error"
 )
 
-// Códigos de erro
 const (
 	ErrInvalidJSON   = "INVALID_JSON"
 	ErrUnknownType   = "UNKNOWN_TYPE"
 	ErrTopicRequired = "TOPIC_REQUIRED"
 	ErrNoSubscribers = "NO_SUBSCRIBERS"
+	ErrBufferFull    = "BUFFER_FULL"
 )
 
-// Message representa uma mensagem do protocolo
 type Message struct {
 	Type      string          `json:"type"`
 	Topic     string          `json:"topic,omitempty"`
@@ -34,7 +32,6 @@ type Message struct {
 	Timestamp string          `json:"timestamp,omitempty"`
 }
 
-// Response representa uma resposta do broker
 type Response struct {
 	Type    string `json:"type"`
 	Success bool   `json:"success,omitempty"`
@@ -43,7 +40,6 @@ type Response struct {
 	Message string `json:"message,omitempty"`
 }
 
-// NewPublish cria uma mensagem de publish
 func NewPublish(topic string, payload any) (*Message, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -56,7 +52,6 @@ func NewPublish(topic string, payload any) (*Message, error) {
 	}, nil
 }
 
-// NewSubscribe cria uma mensagem de subscribe
 func NewSubscribe(topic string) *Message {
 	return &Message{
 		Type:  TypeSubscribe,
@@ -64,7 +59,6 @@ func NewSubscribe(topic string) *Message {
 	}
 }
 
-// NewUnsubscribe cria uma mensagem de unsubscribe
 func NewUnsubscribe(topic string) *Message {
 	return &Message{
 		Type:  TypeUnsubscribe,
@@ -72,7 +66,6 @@ func NewUnsubscribe(topic string) *Message {
 	}
 }
 
-// NewDelivery cria uma mensagem para entregar ao subscriber
 func NewDelivery(topic string, payload json.RawMessage) *Message {
 	return &Message{
 		Type:      TypeMessage,
@@ -82,7 +75,6 @@ func NewDelivery(topic string, payload json.RawMessage) *Message {
 	}
 }
 
-// NewAck cria uma resposta de sucesso
 func NewAck(topic string) *Response {
 	return &Response{
 		Type:    TypeAck,
@@ -91,7 +83,6 @@ func NewAck(topic string) *Response {
 	}
 }
 
-// NewError cria uma resposta de erro
 func NewError(code, message string) *Response {
 	return &Response{
 		Type:    TypeError,
@@ -101,7 +92,6 @@ func NewError(code, message string) *Response {
 	}
 }
 
-// EncodeMessage serializa uma mensagem para JSON com newline
 func EncodeMessage(w io.Writer, msg *Message) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -112,7 +102,6 @@ func EncodeMessage(w io.Writer, msg *Message) error {
 	return err
 }
 
-// DecodeMessage lê e deserializa uma mensagem JSON
 func DecodeMessage(r *bufio.Reader) (*Message, error) {
 	line, err := r.ReadBytes('\n')
 	if err != nil {
@@ -125,7 +114,6 @@ func DecodeMessage(r *bufio.Reader) (*Message, error) {
 	return &msg, nil
 }
 
-// EncodeResponse serializa uma resposta para JSON com newline
 func EncodeResponse(w io.Writer, resp *Response) error {
 	data, err := json.Marshal(resp)
 	if err != nil {
@@ -136,7 +124,6 @@ func EncodeResponse(w io.Writer, resp *Response) error {
 	return err
 }
 
-// DecodeResponse lê e deserializa uma resposta JSON
 func DecodeResponse(r *bufio.Reader) (*Response, error) {
 	line, err := r.ReadBytes('\n')
 	if err != nil {
