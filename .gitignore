@@ -1,0 +1,16 @@
+# Variáveis de ambiente locais
+.env
+
+# Binários compilados
+broker/broker
+loadbalancer/loadbalancer
+exemplos/publisher-cambio/publisher-cambio
+exemplos/publisher-cripto/publisher-cripto
+exemplos/subscriber-importadores/subscriber-importadores
+exemplos/subscriber-investidores/subscriber-investidores
+
+# Binários Windows
+*.exe
+
+# Cache do Go
+vendor/
