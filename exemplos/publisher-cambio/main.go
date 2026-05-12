@@ -36,24 +36,15 @@ func main() {
 	}
 	intervalo := time.Duration(intervaloSeg) * time.Second
 
-	clientDolar := lib.NewClient(addr)
-	if err := clientDolar.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (dolar): %v", err)
-	}
-	defer clientDolar.Close()
-
-	clientEuro := lib.NewClient(addr)
-	if err := clientEuro.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (euro): %v", err)
-	}
-	defer clientEuro.Close()
+	client := lib.NewClient(addr)
+	defer client.Close()
 
 	log.Printf("[INFO] Publisher Câmbio iniciado — publicando dolar e euro a cada %v", intervalo)
 
 	ciclo := func() {
 		if c, err := coletor.BuscarDolar(); err != nil {
 			log.Printf("[ERROR] %v", err)
-		} else if err := clientDolar.Publish("dolar", cotacaoParaPayload(c)); err != nil {
+		} else if err := client.Publish("dolar", cotacaoParaPayload(c)); err != nil {
 			log.Printf("[ERROR] Falha ao publicar dolar: %v", err)
 		} else {
 			log.Printf("[INFO] Dólar → compra R$%s | var %s", c.Compra, c.VariacaoPct)
@@ -61,7 +52,7 @@ func main() {
 
 		if c, err := coletor.BuscarEuro(); err != nil {
 			log.Printf("[ERROR] %v", err)
-		} else if err := clientEuro.Publish("euro", cotacaoParaPayload(c)); err != nil {
+		} else if err := client.Publish("euro", cotacaoParaPayload(c)); err != nil {
 			log.Printf("[ERROR] Falha ao publicar euro: %v", err)
 		} else {
 			log.Printf("[INFO] Euro  → compra R$%s | var %s", c.Compra, c.VariacaoPct)

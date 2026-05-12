@@ -18,29 +18,20 @@ func getEnv(key, fallback string) string {
 func main() {
 	addr := getEnv("LB_ADDR", "localhost:8080")
 
-	clientDolar := lib.NewClient(addr)
-	if err := clientDolar.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (dolar): %v", err)
-	}
-	defer clientDolar.Close()
+	client := lib.NewClient(addr)
+	defer client.Close()
 
-	clientEuro := lib.NewClient(addr)
-	if err := clientEuro.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (euro): %v", err)
-	}
-	defer clientEuro.Close()
-
-	if err := clientDolar.Subscribe("dolar", handleDolar); err != nil {
+	if err := client.Subscribe("dolar", handleDolar); err != nil {
 		log.Fatalf("[FATAL] Erro ao subscrever em dolar: %v", err)
 	}
 
-	if err := clientEuro.Subscribe("euro", handleEuro); err != nil {
+	if err := client.Subscribe("euro", handleEuro); err != nil {
 		log.Fatalf("[FATAL] Erro ao subscrever em euro: %v", err)
 	}
 
 	log.Println("[INFO] Importadora aguardando cotações de: dolar, euro")
 
-	<-clientDolar.Done()
+	<-client.Done()
 }
 
 func handleDolar(topic string, payload json.RawMessage) {

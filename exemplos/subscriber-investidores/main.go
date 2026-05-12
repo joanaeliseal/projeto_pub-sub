@@ -18,29 +18,20 @@ func getEnv(key, fallback string) string {
 func main() {
 	addr := getEnv("LB_ADDR", "localhost:8080")
 
-	clientBitcoin := lib.NewClient(addr)
-	if err := clientBitcoin.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (bitcoin): %v", err)
-	}
-	defer clientBitcoin.Close()
+	client := lib.NewClient(addr)
+	defer client.Close()
 
-	clientSelic := lib.NewClient(addr)
-	if err := clientSelic.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (selic): %v", err)
-	}
-	defer clientSelic.Close()
-
-	if err := clientBitcoin.Subscribe("bitcoin", handleBitcoin); err != nil {
+	if err := client.Subscribe("bitcoin", handleBitcoin); err != nil {
 		log.Fatalf("[FATAL] Erro ao subscrever em bitcoin: %v", err)
 	}
 
-	if err := clientSelic.Subscribe("selic", handleSelic); err != nil {
+	if err := client.Subscribe("selic", handleSelic); err != nil {
 		log.Fatalf("[FATAL] Erro ao subscrever em selic: %v", err)
 	}
 
 	log.Println("[INFO] Painel de Investidores aguardando: bitcoin, selic")
 
-	<-clientBitcoin.Done()
+	<-client.Done()
 }
 
 func handleBitcoin(topic string, payload json.RawMessage) {
