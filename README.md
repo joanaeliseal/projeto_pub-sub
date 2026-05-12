@@ -13,7 +13,7 @@ Implementação de um middleware Pub/Sub para a disciplina de Programação Dist
 - Dispatch assíncrono: recebimento e encaminhamento são independentes
 - Descarte de mensagens sem assinantes com notificação ao publicador
 - Load balancer com roteamento determinístico por hash de tópico
-- Biblioteca cliente (`lib`) que abstrai toda a comunicação TCP
+- Biblioteca cliente (`lib`) com transparência total: o app usa um único `Client` para quantos tópicos quiser; a lib abre e gerencia uma conexão TCP por tópico internamente
 
 ## Estrutura do Projeto
 
@@ -68,7 +68,25 @@ O load balancer usa hash determinístico do nome do tópico para escolher o brok
 broker = fnv32(topic) % número_de_brokers
 ```
 
-Isso garante que publisher e subscriber do mesmo tópico sempre se encontrem no mesmo broker, sem necessidade de sincronização entre brokers. A biblioteca cliente (`lib`) abstrai esse detalhe: a aplicação só conhece o endereço do load balancer.
+Isso garante que publisher e subscriber do mesmo tópico sempre se encontrem no mesmo broker, sem necessidade de sincronização entre brokers.
+
+### Transparência na biblioteca
+
+O requisito do projeto é que o balanceamento seja **transparente** para as aplicações. Isso é garantido da seguinte forma:
+
+- O app configura **um único endereço** (`LB_ADDR`) e cria **um único `lib.Client`**.
+- Ao chamar `Subscribe("dolar", ...)` ou `Publish("euro", ...)`, a biblioteca **abre internamente uma conexão TCP dedicada para cada tópico** apontando para o mesmo endereço do LB.
+- A **primeira mensagem** de cada conexão carrega o nome do tópico — o LB usa esse campo para calcular o hash e direcionar a sessão ao broker correto.
+- Do ponto de vista do app: um objeto, um endereço. A multiplicidade de conexões e brokers é completamente invisível.
+
+```
+App                    lib (interno)              LB              Brokers
+─────                  ─────────────              ──              ───────
+NewClient("LB:8080")
+Subscribe("dolar") →   conn_dolar → LB:8080  →  hash("dolar") → broker-A:9000
+Subscribe("euro")  →   conn_euro  → LB:8080  →  hash("euro")  → broker-B:9001
+Publish("dolar")   →   conn_dolar → broker-A (sessão já aberta)
+```
 
 ## Cenário de Teste
 
@@ -135,17 +153,30 @@ docker compose down
 
 #### Opção 2 — Terminais separados (sem Docker)
 
+> **Windows (PowerShell):** variáveis de ambiente são definidas com `$env:VARIAVEL="valor"` antes do comando.
+> **Linux/macOS:** use a sintaxe `VARIAVEL=valor go run ./...` diretamente.
+
 **1. Brokers** (dois terminais):
-```bash
-# Terminal 1 — Broker A
+
+PowerShell:
+```powershell
+# Terminal 1 — Broker A (porta padrão :9000)
 go run ./broker
 
 # Terminal 2 — Broker B
-PORT=:9001 go run ./broker
+$env:PORT=":9001"; go run ./broker
+```
+
+Linux/macOS:
+```bash
+go run ./broker                  # Terminal 1
+PORT=:9001 go run ./broker       # Terminal 2
 ```
 
 **2. Load Balancer** (um terminal):
-```bash
+
+PowerShell:
+```powershell
 # Terminal 3
 # Porta padrão: 8080 (a 8000 é usada pelo Docker Desktop)
 BROKERS=localhost:9000,localhost:9001 go run ./loadbalancer
@@ -198,11 +229,20 @@ go run ./exemplos/publisher-cripto
 ### Teste sem Load Balancer
 
 Para testar apenas o broker sem o LB:
+
 ```bash
 # Terminal 1 — broker direto na porta padrão
 go run ./broker
+```
 
-# Nos exemplos, aponte para o broker:
+PowerShell:
+```powershell
+$env:LB_ADDR="localhost:9000"; go run ./exemplos/publisher-cambio
+$env:LB_ADDR="localhost:9000"; go run ./exemplos/subscriber-importadores
+```
+
+Linux/macOS:
+```bash
 LB_ADDR=localhost:9000 go run ./exemplos/publisher-cambio
 LB_ADDR=localhost:9000 go run ./exemplos/subscriber-importadores
 ```

@@ -30,17 +30,8 @@ func main() {
 		intervaloSelicSeg = 60
 	}
 
-	clientBitcoin := lib.NewClient(addr)
-	if err := clientBitcoin.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (bitcoin): %v", err)
-	}
-	defer clientBitcoin.Close()
-
-	clientSelic := lib.NewClient(addr)
-	if err := clientSelic.Connect(); err != nil {
-		log.Fatalf("[FATAL] Erro ao conectar (selic): %v", err)
-	}
-	defer clientSelic.Close()
+	client := lib.NewClient(addr)
+	defer client.Close()
 
 	log.Printf("[INFO] Publisher Cripto/Juros iniciado")
 	log.Printf("[INFO]   bitcoin → a cada %ds | selic → a cada %ds",
@@ -59,7 +50,7 @@ func main() {
 			"minimo_dia":    c.MinimoDia,
 			"atualizado_em": c.AtualizadoEm,
 		}
-		if err := clientBitcoin.Publish("bitcoin", payload); err != nil {
+		if err := client.Publish("bitcoin", payload); err != nil {
 			log.Printf("[ERROR] Falha ao publicar bitcoin: %v", err)
 			return
 		}
@@ -77,7 +68,7 @@ func main() {
 			"data_referencia": s.DataReferencia,
 			"fonte":           "Banco Central do Brasil",
 		}
-		if err := clientSelic.Publish("selic", payload); err != nil {
+		if err := client.Publish("selic", payload); err != nil {
 			log.Printf("[ERROR] Falha ao publicar selic: %v", err)
 			return
 		}
@@ -98,7 +89,7 @@ func main() {
 			publicarBitcoin()
 		case <-tickerSelic.C:
 			publicarSelic()
-		case <-clientBitcoin.Done():
+		case <-client.Done():
 			return
 		}
 	}
